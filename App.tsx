@@ -1,137 +1,94 @@
 
-import React, { useState, useRef } from 'react';
-import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard';
-import { Reports } from './components/Reports';
-import { AddTransactionModal } from './components/AddTransactionModal';
-import { Transaction, Category, UserProfile, View, TransactionType } from './types';
-import useLocalStorage from './hooks/useLocalStorage';
-import { INITIAL_INCOME_CATEGORIES, INITIAL_EXPENSE_CATEGORIES } from './constants';
-import { PlusIcon, BackupIcon, RestoreIcon } from './components/icons';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import type { Transaction, Category, View } from './types';
+import Header from './components/Header';
+import Dashboard from './components/Dashboard';
+import Reports from './components/Reports';
+import Settings from './components/Settings';
+
+const DEFAULT_BG = "https://picsum.photos/1920/1080?grayscale&blur=2";
 
 const App: React.FC = () => {
-  const [profile, setProfile] = useLocalStorage<UserProfile>('user-profile', {
-    name: 'محمد طلبة',
-    photo: null,
-  });
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
-  const [incomeCategories, setIncomeCategories] = useLocalStorage<Category[]>('income-categories', INITIAL_INCOME_CATEGORIES);
-  const [expenseCategories, setExpenseCategories] = useLocalStorage<Category[]>('expense-categories', INITIAL_EXPENSE_CATEGORIES);
-  const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [categories, setCategories] = useLocalStorage<Category[]>('categories', [
+    { id: 'cat-1', name: 'راتب' },
+    { id: 'cat-2', name: 'طعام' },
+    { id: 'cat-3', name: 'مواصلات' },
+    { id: 'cat-4', name: 'فواتير' },
+    { id: 'cat-5', name: 'ترفيه' },
+  ]);
+  const [backgroundImage, setBackgroundImage] = useLocalStorage<string>('backgroundImage', DEFAULT_BG);
+  const [currentView, setCurrentView] = useState<View>('dashboard');
 
-  const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction = { ...transaction, id: crypto.randomUUID() };
-    setTransactions(prev => [...prev, newTransaction]);
-  };
+  const handleAddTransaction = useCallback((transaction: Omit<Transaction, 'id'>) => {
+    setTransactions(prev => [{ ...transaction, id: `trans-${Date.now()}` }, ...prev]);
+  }, [setTransactions]);
 
-  const addCategory = (category: Omit<Category, 'id'>) => {
-    const newCategory = { ...category, id: crypto.randomUUID() };
-    if (category.type === TransactionType.INCOME) {
-      setIncomeCategories(prev => [...prev, newCategory]);
-    } else {
-      setExpenseCategories(prev => [...prev, newCategory]);
+  const handleDeleteTransaction = useCallback((id: string) => {
+    setTransactions(prev => prev.filter(t => t.id !== id));
+  }, [setTransactions]);
+
+  const handleAddCategory = useCallback((name: string) => {
+    if (name && !categories.some(c => c.name === name)) {
+      setCategories(prev => [...prev, { id: `cat-${Date.now()}`, name }]);
+      return true;
+    }
+    return false;
+  }, [categories, setCategories]);
+  
+  const handleDeleteCategory = useCallback((id: string) => {
+    setCategories(prev => prev.filter(c => c.id !== id));
+  }, [setCategories]);
+
+  const handleUpdateCategory = useCallback((id: string, newName: string) => {
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
+  }, [setCategories]);
+
+  const sortedTransactions = useMemo(() => {
+    return [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions]);
+
+  const renderView = () => {
+    switch (currentView) {
+      case 'reports':
+        return <Reports transactions={sortedTransactions} />;
+      case 'settings':
+        return (
+          <Settings
+            categories={categories}
+            onAddCategory={handleAddCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onUpdateCategory={handleUpdateCategory}
+            currentBackground={backgroundImage}
+            onSetBackground={setBackgroundImage}
+          />
+        );
+      case 'dashboard':
+      default:
+        return (
+          <Dashboard
+            transactions={sortedTransactions.slice(0, 10)}
+            onAddTransaction={handleAddTransaction}
+            onDeleteTransaction={handleDeleteTransaction}
+            categories={categories}
+            onAddCategory={handleAddCategory}
+          />
+        );
     }
   };
-
-  const handleBackup = () => {
-    const data = {
-      profile,
-      transactions,
-      incomeCategories,
-      expenseCategories,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    alert('تم إنشاء نسخة احتياطية بنجاح! تحقق من مجلد التنزيلات.');
-  };
-
-  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = JSON.parse(e.target?.result as string);
-          if (confirm('هل أنت متأكد من أنك تريد استعادة البيانات؟ سيتم الكتابة فوق البيانات الحالية.')) {
-            setProfile(data.profile);
-            setTransactions(data.transactions);
-            setIncomeCategories(data.incomeCategories);
-            setExpenseCategories(data.expenseCategories);
-            alert('تم استعادة البيانات بنجاح!');
-          }
-        } catch (error) {
-          alert('ملف النسخ الاحتياطي غير صالح.');
-        } finally {
-          // Reset file input
-          if(restoreInputRef.current) {
-            restoreInputRef.current.value = "";
-          }
-        }
-      };
-      reader.readAsText(file);
-    }
-  };
-
 
   return (
-    <div className="bg-gray-100 min-h-screen text-gray-900">
-      <Header profile={profile} setProfile={setProfile} activeView={activeView} setActiveView={setActiveView} />
-      <main>
-        {activeView === View.DASHBOARD && <Dashboard transactions={transactions} />}
-        {activeView === View.REPORTS && <Reports transactions={transactions} />}
-      </main>
-
-      <AddTransactionModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        addTransaction={addTransaction}
-        addCategory={addCategory}
-        incomeCategories={incomeCategories}
-        expenseCategories={expenseCategories}
-      />
-      
-      <div className="fixed bottom-4 left-4 flex flex-col gap-3">
-        <button onClick={handleBackup} className="bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition" title="نسخ احتياطي">
-            <BackupIcon className="w-7 h-7" />
-        </button>
-        <button onClick={() => restoreInputRef.current?.click()} className="bg-green-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:bg-green-700 transition" title="استعادة نسخة احتياطية">
-            <RestoreIcon className="w-7 h-7" />
-        </button>
-         <input
-              type="file"
-              ref={restoreInputRef}
-              className="hidden"
-              accept="application/json"
-              onChange={handleRestore}
-            />
+    <div
+      className="min-h-screen w-full bg-cover bg-center bg-fixed text-white transition-all duration-500"
+      style={{ backgroundImage: `url(${backgroundImage})` }}
+    >
+      <div className="min-h-screen w-full bg-gray-900 bg-opacity-80 backdrop-blur-sm">
+        <Header currentView={currentView} setCurrentView={setCurrentView} />
+        <main className="p-4 sm:p-6 md:p-8">
+          {renderView()}
+        </main>
       </div>
-
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-4 right-4 bg-indigo-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition transform hover:scale-110"
-        title="إضافة معاملة جديدة"
-      >
-        <PlusIcon className="w-8 h-8" />
-      </button>
-
-      <div className="fixed bottom-20 left-4 bg-yellow-100 border border-yellow-300 p-3 rounded-lg shadow-lg text-sm text-yellow-800 max-w-xs">
-          <p className="font-bold">ملاحظات النسخ الاحتياطي:</p>
-          <ul className="list-disc list-inside mt-1">
-              <li>يتم حفظ بياناتك تلقائيًا في هذا المتصفح.</li>
-              <li>استخدم زر "نسخ احتياطي" لحفظ ملف بياناتك على جهازك.</li>
-              <li>استخدم "استعادة" لتحميل بيانات من ملف تم حفظه مسبقًا.</li>
-          </ul>
-      </div>
-
     </div>
   );
 };

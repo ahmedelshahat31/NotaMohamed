@@ -1,0 +1,25 @@
+
+{
+  "name": "مدير المال",
+  "short_name": "مدير المال",
+  "description": "تطبيق لإدارة المصروفات والإيرادات الشخصية.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#14B8A6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://www.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://www.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
